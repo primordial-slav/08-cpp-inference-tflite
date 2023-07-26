@@ -1,0 +1,6 @@
+build/*
+models/*
+lib*
+__/*
+include/*
+*.jpg

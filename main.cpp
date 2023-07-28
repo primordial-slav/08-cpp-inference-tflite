@@ -75,6 +75,16 @@ int main() {
     // Open a file stream for output
     std::ofstream file("../output.txt");
 
+    // First, run your model and get the output tensor.
+    TfLiteTensor* output_tensor = interpreter->output_tensor(0);
+
+    // Convert the output tensor to a cv::Mat.
+    cv::Mat raw_boxes(output_tensor->dims->data[0], output_tensor->dims->data[1], CV_32F, output_tensor->data.f);
+
+    // Then, call the function on the output.
+    std::vector<cv::Mat> boxes = _decode_boxes(raw_boxes);
+
+    // Now you can use 'boxes' however you need in your co
     // Check if any output values are NaN and write output to file
     int output_size = interpreter->output_tensor(0)->bytes / sizeof(float);
     for (int i = 0; i < output_size; i++) {

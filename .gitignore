@@ -2,5 +2,7 @@ build/*
 models/*
 lib*
 __/*
-include/*
+include/tensorflow/*
+include/opencv2/*
 *.jpg
+*.txt

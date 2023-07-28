@@ -21,5 +21,5 @@ include_directories(${OpenCV_INCLUDE_DIRS} ../include)
 # Link OpenCV and TensorFlow libraries
 link_directories(${OpenCV_LIBS} ../lib)
 
-add_executable(main main.cpp)
+add_executable(main main.cpp decode_boxes.cpp)
 target_link_libraries(main ${OpenCV_LIBS} tensorflow-lite)

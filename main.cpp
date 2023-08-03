@@ -1,12 +1,19 @@
 #include <cstdio>
 #include <fstream>
+#include <chrono>  // for high_resolution_clock
 #include <opencv2/opencv.hpp>
 
 #include "tensorflow/lite/interpreter.h"
 #include "tensorflow/lite/kernels/register.h"
 #include "tensorflow/lite/model.h"
+#include "tensorflow/lite/c/c_api_internal.h"
 #include "tensorflow/lite/optional_debug_tools.h"
 #include "decode_boxes.h"
+
+//#include "mediapipe.h"
+//#include <mediapipe/framework/calculator_framework.pb.h>
+#include <limits>
+#include <unordered_set>
 
 #define TFLITE_MINIMAL_CHECK(x)                              \
   if (!(x)) {                                                \
@@ -24,9 +31,10 @@ int main() {
     tflite::ops::builtin::BuiltinOpResolver resolver;
     tflite::InterpreterBuilder builder(*model, resolver);
     std::unique_ptr<tflite::Interpreter> interpreter;
+    
     builder(&interpreter);
     TFLITE_MINIMAL_CHECK(interpreter != nullptr);
-
+    interpreter->SetNumThreads(1); //force to use cpu
     interpreter->AllocateTensors();
 
     // Get the shape of the first input tensor
@@ -63,55 +71,22 @@ int main() {
     cv::cvtColor(tensor_data, tensor_data, cv::COLOR_RGB2BGR);
     cv::imwrite("../resized_image.jpg", tensor_data);
     cv::cvtColor(tensor_data, tensor_data, cv::COLOR_BGR2RGB);
+
+    auto start = std::chrono::high_resolution_clock::now();
     // Copy the image data into the input tensor
     float* input = interpreter->typed_input_tensor<float>(0);
     memcpy(input, tensor_data.data, tensor_data.total() * tensor_data.elemSize());
 
     // Invoke the model
     interpreter->Invoke();
-
+    
     // Get the output
-    float* output = interpreter->typed_output_tensor<float>(0);
-    // Open a file stream for output
-    std::ofstream file("../output.txt");
+    //float* output = interpreter->typed_output_tensor<float>(0);
 
     // First, run your model and get the output tensor.
-    TfLiteTensor* output_tensor = interpreter->output_tensor(0);
+    TfLiteTensor* raw_box_tensor = interpreter->output_tensor(0);
+    TfLiteTensor* raw_score_tensor = interpreter->output_tensor(1);
 
-    // Convert the output tensor to a cv::Mat.
-    cv::Mat raw_boxes(output_tensor->dims->data[0], output_tensor->dims->data[1], CV_32F, output_tensor->data.f);
-
-    // Then, call the function on the output.
-    std::vector<cv::Mat> boxes = _decode_boxes(raw_boxes);
-
-    // Now you can use 'boxes' however you need in your co
-    // Check if any output values are NaN and write output to file
-    int output_size = interpreter->output_tensor(0)->bytes / sizeof(float);
-    for (int i = 0; i < output_size; i++) {
-        if (std::isnan(output[i])) {
-            printf("Output contains NaN values.\n");
-            break;
-        }
-        file << output[i] << "\n";  // Write the output value to the file
-    }
-
-    // Don't forget to close the file when you're done
-    file.close();
-
-    // Check if any output values are NaN
-    for (int i = 0; i < output_size; i++) {
-        if (std::isnan(output[i])) {
-            printf("Output contains NaN values.\n");
-            break;
-        }
-    }
-    // Get the shape of the first output tensor
-    TfLiteIntArray* output_dims  = interpreter->output_tensor(0)->dims;
-    printf("Output shape: ");
-    for (int i = 0; i < output_dims ->size; i++) {
-        printf("%d ", output_dims ->data[i]);
-    }
-    printf("\n");
 
     return 0;
 }

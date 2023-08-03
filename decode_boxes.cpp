@@ -1,19 +1,139 @@
 // decode_boxes.cpp
-
+#include <vector>
+#include <map>
+#include <string>
+#include <cassert>
+#include <cmath>
 #include "decode_boxes.h"
+#include <iostream>
+#include "tensorflow/lite/interpreter.h"
+#include <tensorflow/lite/c/c_api.h>
+#include "tensorflow/lite/kernels/kernel_util.h"
+#include <iostream>
+#include <fstream>
+#include <vector>
 
-std::vector<cv::Mat> _decode_boxes(cv::Mat raw_boxes) {
-    // Implement your function here.
-    // This is a placeholder and will not work as expected.
-    // Replace with your actual implementation.
+#include <limits>
+#include <unordered_set>
 
-    int scale = raw_boxes.cols;
-    int num_points = raw_boxes.cols / 2;
-    std::vector<cv::Mat> boxes;
+void filterClassesByScores(const float* raw_scores,
+                           std::vector<float>& detection_scores,
+                           std::vector<int>& detection_classes) {
+    
+    // Fixed 
+    int num_classes = 1;
+    int num_boxes = 2304; // TODO CHANGE THIS THING
+    double sigmoid_score = 0.5;
+    bool has_score_clipping_thresh = true;
+    double score_clipping_thresh = 80;
+    for (int i = 0; i < num_boxes; ++i) {
+        int class_id = -1;
+        float max_score = -std::numeric_limits<float>::max();
+        // Find the top score for box i.
+        for (int score_idx = 0; score_idx < num_classes; ++score_idx) {
+            auto score = raw_scores[i * num_classes + score_idx];
+            if (sigmoid_score) {
+            if (has_score_clipping_thresh) {
+                score = score < -score_clipping_thresh
+                            ? -score_clipping_thresh
+                            : score;
+                score = score > score_clipping_thresh
+                            ? score_clipping_thresh
+                            : score;
+            }
+            score = 1.0f / (1.0f + std::exp(-score));
+            }
+            if (max_score < score) {
+            max_score = score;
+            class_id = score_idx;
+            }
+        }
+        detection_scores[i] = max_score;
+        detection_classes[i] = class_id;
+    }
+}
 
-    // Use OpenCV functions to manipulate raw_boxes and populate boxes.
-    // You can use OpenCV functions such as reshape, divide, multiply, add, subtract, etc.
-    // Refer to the OpenCV documentation for details on how to use these functions.
 
-    return boxes;
+
+
+
+std::vector<std::pair<float, float>> ssd_generate_anchors() {
+    int layer_id = 0;
+    int num_layers = 1;
+    std::vector<int> strides = {4};  // assuming strides is a vector in opts
+    assert(strides.size() == num_layers);
+    int input_height = 192;
+    int input_width = 192;
+    double anchor_offset_x = 0.5;
+    double anchor_offset_y = 0.5;
+    double interpolated_scale_aspect_ratio = 0.0;
+
+    std::vector<std::pair<float, float>> anchors;
+
+    while (layer_id < num_layers) {
+        int last_same_stride_layer = layer_id;
+        int repeats = 0;
+
+        while (last_same_stride_layer < num_layers && strides[last_same_stride_layer] == strides[layer_id]) {
+            last_same_stride_layer += 1;
+            repeats += (interpolated_scale_aspect_ratio == 1.0) ? 2 : 1;
+        }
+
+        int stride = strides[layer_id];
+        int feature_map_height = input_height / stride;
+        int feature_map_width = input_width / stride;
+
+        for (int y = 0; y < feature_map_height; y++) {
+            double y_center = (y + anchor_offset_y) / feature_map_height;
+
+            for (int x = 0; x < feature_map_width; x++) {
+                double x_center = (x + anchor_offset_x) / feature_map_width;
+
+                for (int i = 0; i < repeats; i++) {
+                    anchors.push_back(std::make_pair(x_center, y_center));
+                }
+            }
+        }
+
+        layer_id = last_same_stride_layer;
+    }
+
+    return anchors;
+}
+
+
+
+void print_tensor_details(TfLiteTensor* tensor) {
+    if (tensor == nullptr) {
+        std::cout << "Tensor is nullptr." << std::endl;
+        return;
+    }
+    // Print the output tensor type
+    const char* type = TfLiteTypeGetName(tensor->type);
+
+    std::cout << "Type: " << type << std::endl;
+
+    // Print the number of dimensions
+    std::cout << "Number of dimensions: " << tensor->dims->size << std::endl;
+
+    // Print the shape of the tensor
+    std::cout << "Shape: ";
+        for (int i = 0; i < tensor->dims->size; ++i) {
+            std::cout << tensor->dims->data[i] << " ";
+    }
+    std::cout << std::endl;
+}
+
+
+void writeVectorToFile(const std::vector<float>& data, const std::string& filename) {
+    std::ofstream file(filename);
+    if (file.is_open()) {
+        for (const float& value : data) {
+            file << value << "\n"; // Write each value to a new line in the file
+        }
+        file.close();
+        std::cout << "Data has been written to " << filename << std::endl;
+    } else {
+        std::cout << "Unable to open the file " << filename << std::endl;
+    }
 }

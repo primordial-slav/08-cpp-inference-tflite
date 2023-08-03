@@ -16,10 +16,12 @@ add_subdirectory(
 find_package(OpenCV REQUIRED)
 
 # Include OpenCV and TensorFlow headers
-include_directories(${OpenCV_INCLUDE_DIRS} ../include)
+include_directories(${OpenCV_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/include")
 
 # Link OpenCV and TensorFlow libraries
-link_directories(${OpenCV_LIBS} ../lib)
+link_directories(${OpenCV_LIBS} "${CMAKE_CURRENT_LIST_DIR}/lib")
 
+# Link mediapipe
 add_executable(main main.cpp decode_boxes.cpp)
-target_link_libraries(main ${OpenCV_LIBS} tensorflow-lite)
+#add_executable(main main.cpp)
+target_link_libraries(main ${OpenCV_LIBS} tensorflow-lite)#libmediapipe.so

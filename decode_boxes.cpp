@@ -5,10 +5,12 @@
 #include <cassert>
 #include <cmath>
 #include "decode_boxes.h"
+#include "anchors.h"
 #include <iostream>
 #include "tensorflow/lite/interpreter.h"
 #include <tensorflow/lite/c/c_api.h>
 #include "tensorflow/lite/kernels/kernel_util.h"
+#include <opencv2/opencv.hpp>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -44,17 +46,14 @@ void filterClassesByScores(const float* raw_scores,
             score = 1.0f / (1.0f + std::exp(-score));
             }
             if (max_score < score) {
-            max_score = score;
-            class_id = score_idx;
+                max_score = score;
+                class_id = score_idx;
             }
         }
         detection_scores[i] = max_score;
         detection_classes[i] = class_id;
     }
 }
-
-
-
 
 
 std::vector<std::pair<float, float>> ssd_generate_anchors() {
@@ -136,4 +135,34 @@ void writeVectorToFile(const std::vector<float>& data, const std::string& filena
     } else {
         std::cout << "Unable to open the file " << filename << std::endl;
     }
+}
+
+cv::Mat resizeAndPad(cv::Mat& img, const cv::Size& targetSize, const cv::Scalar& padColor)
+{
+    cv::Mat res;
+
+    // Calculate the aspect ratio of the image
+    double aspectRatio = (double)img.cols / (double)img.rows;
+    double targetAspectRatio = (double)targetSize.width / (double)targetSize.height;
+
+    // Resize the image so that the dimension with the smaller ratio becomes 192
+    if (aspectRatio > targetAspectRatio)
+    {
+        cv::resize(img, res, cv::Size(targetSize.width, std::round(targetSize.width / aspectRatio)), 0, 0, cv::INTER_AREA);
+    }
+    else
+    {
+        cv::resize(img, res, cv::Size(std::round(targetSize.height * aspectRatio), targetSize.height), 0, 0, cv::INTER_AREA);
+    }
+
+    // Calculate padding
+    int topPad = (targetSize.height - res.rows) / 2;
+    int bottomPad = targetSize.height - topPad - res.rows;
+    int leftPad = (targetSize.width - res.cols) / 2;
+    int rightPad = targetSize.width - leftPad - res.cols;
+
+    // Pad the image
+    cv::copyMakeBorder(res, res, topPad, bottomPad, leftPad, rightPad, cv::BORDER_CONSTANT, padColor);
+
+    return res;
 }

@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <fstream>
+#include <iostream>
 #include <chrono>  // for high_resolution_clock
+#include <filesystem>
 #include <opencv2/opencv.hpp>
 
 #include "tensorflow/lite/interpreter.h"
@@ -23,10 +25,23 @@
     exit(1);                                                 \
   }
 
-int main() {
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <image_path>" << std::endl;
+        return 1;
+    }
+    std::string image_path = argv[1];
     std::unique_ptr<tflite::FlatBufferModel> model =
         tflite::FlatBufferModel::BuildFromFile("../models/face_detection_full_range.tflite");
 
+    std::string output_folder = "../outputs/full_range/";
+    // Find the last occurrence of the path separator
+    std::size_t pos = image_path.find_last_of("/\\");
+
+    // Extract the filename (substring that follows the last path separator)
+    std::string filename = (pos == std::string::npos) ? image_path : image_path.substr(pos + 1);
+    std::string draw_path = output_folder + filename;
+    std::string raw_data_output = output_folder+filename+".txt";
     TFLITE_MINIMAL_CHECK(model != nullptr);
 
     // Build the interpreter
@@ -48,7 +63,7 @@ int main() {
     printf("\n");
 
     // Load the image
-    cv::Mat img = cv::imread("../data/example.jpg", cv::IMREAD_COLOR);
+    cv::Mat img = cv::imread(image_path, cv::IMREAD_COLOR);
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
     if (img.empty()) {
         fprintf(stderr, "Failed to load image\n");
@@ -72,11 +87,11 @@ int main() {
     res.convertTo(tensor_data, CV_32FC1); //, (max_val - min_val) / 255.0, min_val
     
     //cv::cvtColor(tensor_data, tensor_data, cv::COLOR_RGB2BGR);
-    cv::imwrite("../data/resized_image.jpg", tensor_data);
+    //cv::imwrite("../data/resized_image.jpg", tensor_data);
     //cv::cvtColor(tensor_data, tensor_data, cv::COLOR_BGR2RGB);
     tensor_data = tensor_data/255.0;
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start_time = std::chrono::high_resolution_clock::now();
     // Copy the image data into the input tensor
     float* input = interpreter->typed_input_tensor<float>(0);
     memcpy(input, tensor_data.data, tensor_data.total() * tensor_data.elemSize());
@@ -95,7 +110,7 @@ int main() {
     std::vector<int> detection_classes(2304);
 
     // Now, write the data to a text file
-    std::ofstream outfile("../data/raw_scores.txt");
+    std::ofstream outfile(raw_data_output);
     if (!outfile) {
         std::cerr << "Failed to open the output file." << std::endl;
         return -1;
@@ -103,9 +118,7 @@ int main() {
     const float* raw_boxes = raw_box_tensor->data.f;
     const float* raw_scores = raw_score_tensor->data.f;
     std::vector<std::vector<float>> boxes;
-    cv::Mat draw = cv::imread("../data/example.jpg", cv::IMREAD_COLOR);
-    cv::cvtColor(draw, draw, cv::COLOR_BGR2RGB);
-    cv::resize(draw, draw, cv::Size(interpreter->input_tensor(0)->dims->data[1], interpreter->input_tensor(0)->dims->data[2]));
+    
     filterClassesByScores(raw_scores,detection_scores,detection_classes);
     for (int i = 0; i < 2304; ++i) {
         const int box_offset = i * 16; //+ options_.box_coord_offset()
@@ -124,14 +137,19 @@ int main() {
         float ymax = (y_center + half_size_h)*192.0; //h
 
         if (score > 0.01f ){ //&& score < 1.0f
-            outfile  <<"score: "<<score<< ", x: " << xmin << ", y: " << ymin << ", h: " << h << ", w: " << w <<std::endl;
-            int x1 = static_cast<int>(std::round(xmin));
-            int y1 = static_cast<int>(std::round(ymin));
-            int x2 = static_cast<int>(std::round(xmax));
-            int y2 = static_cast<int>(std::round(ymax));
-            outfile <<"score: "<<score<< ", x: " << x1 << ", y: " << y1 << ", x2: " << x2 << ", y2: " << y2 <<std::endl;
-            outfile <<"================================"<<std::endl;
+            //outfile  <<"score: "<<score<< ", x: " << xmin << ", y: " << ymin << ", h: " << h << ", w: " << w <<std::endl;
+            //int x1 = static_cast<int>(std::round(xmin));
+            //int y1 = static_cast<int>(std::round(ymin));
+            //int x2 = static_cast<int>(std::round(xmax));
+            //int y2 = static_cast<int>(std::round(ymax));
+            //outfile <<"score: "<<score<< ", x: " << x1 << ", y: " << y1 << ", x2: " << x2 << ", y2: " << y2 <<std::endl;
+            //outfile <<"================================"<<std::endl;
+
             std::vector<float> box = {xmin,ymin,xmax,ymax,score,1};
+            for (const auto& value : box) {
+                outfile << value << ","; // Separate values with a space or any delimiter
+            }
+            outfile<<"\n";
             boxes.push_back(box);
 
         }
@@ -144,8 +162,16 @@ int main() {
     nms(boxes,iou_threshold);
     // Letterbox removal
     remove_letterbox(boxes,192,192,topPad, bottomPad, leftPad, rightPad);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    // Calculate the time difference between the starting and ending time points, in seconds
+    auto duration = std::chrono::duration<double>(end_time - start_time);
+
+    std::cout << "Time taken: " << duration.count() << " seconds" << std::endl;
     // Visualize
     // Iterate through the boxes
+    cv::Mat draw = cv::imread(image_path, cv::IMREAD_COLOR);
+    cv::cvtColor(draw, draw, cv::COLOR_BGR2RGB);
+    cv::resize(draw, draw, cv::Size(interpreter->input_tensor(0)->dims->data[1], interpreter->input_tensor(0)->dims->data[2]));
     for (const auto &box : boxes) {
         // Check if the inner vector has exactly 4 coordinates
         //if (box.size() != 4) continue;
@@ -165,6 +191,6 @@ int main() {
             cv::rectangle(draw, topLeft, bottomRight, cv::Scalar(0, 255, 0), 2);
         }
     }
-    cv::imwrite("../data/draw.jpg", draw);
+    cv::imwrite(draw_path, draw);
     return 0;
 }

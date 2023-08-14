@@ -1,3 +1,4 @@
+#pragma once
 #ifndef EXAMPLE_H  // An include guard to prevent double inclusion of this file
 #define EXAMPLE_H
 
@@ -18,5 +19,9 @@ void filterClassesByScores(const float* raw_scores,
 std::vector<std::pair<float, float>> ssd_generate_anchors();
 void print_tensor_details(TfLiteTensor* tensor);
 void writeVectorToFile(const std::vector<float>& data, const std::string& filename);
-cv::Mat resizeAndPad(cv::Mat& img, const cv::Size& targetSize, const cv::Scalar& padColor);
+// Function declaration for letterbox removal
+void remove_letterbox(std::vector<std::vector<float>>& detections, 
+                      int original_width, int original_height, 
+                      int top_pad, int bottom_pad, int left_pad, int right_pad);
+std::tuple<cv::Mat, int, int, int, int> resizeAndPad(cv::Mat& img, const cv::Size& targetSize, const cv::Scalar& padColor);
 #endif  // Closing the include guard

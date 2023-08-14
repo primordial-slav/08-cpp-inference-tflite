@@ -137,7 +137,7 @@ void writeVectorToFile(const std::vector<float>& data, const std::string& filena
     }
 }
 
-cv::Mat resizeAndPad(cv::Mat& img, const cv::Size& targetSize, const cv::Scalar& padColor)
+std::tuple<cv::Mat, int, int, int, int> resizeAndPad(cv::Mat& img, const cv::Size& targetSize, const cv::Scalar& padColor)
 {
     cv::Mat res;
 
@@ -163,6 +163,26 @@ cv::Mat resizeAndPad(cv::Mat& img, const cv::Size& targetSize, const cv::Scalar&
 
     // Pad the image
     cv::copyMakeBorder(res, res, topPad, bottomPad, leftPad, rightPad, cv::BORDER_CONSTANT, padColor);
+    return std::make_tuple(res, topPad, bottomPad, leftPad, rightPad);
+    //return res, topPad, bottomPad, leftPad, rightPad;
+}
 
-    return res;
+// Function to remove letterbox padding
+void remove_letterbox(std::vector<std::vector<float>>& detections, 
+                      int original_width, int original_height, 
+                      int top_pad, int bottom_pad, int left_pad, int right_pad) {
+    int inner_width = original_width - left_pad - right_pad;
+    int inner_height = original_height - top_pad - bottom_pad;
+
+    float scale_x = (float)original_width / (float)inner_width;
+    float scale_y = (float)original_height / (float)inner_height;
+    float offset_x = (float)left_pad;
+    float offset_y = (float)top_pad;
+
+    for (auto& detection : detections) {
+        detection[0] = (detection[0] - offset_x) * scale_x; // xmin
+        detection[1] = (detection[1] - offset_y) * scale_y; // ymin
+        detection[2] = (detection[2] - offset_x) * scale_x; // xmax
+        detection[3] = (detection[3] - offset_y) * scale_y; // ymax
+    }
 }

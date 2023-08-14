@@ -56,7 +56,12 @@ int main() {
     }
     // Resize the image
     //cv::resize(img, img, cv::Size(interpreter->input_tensor(0)->dims->data[1], interpreter->input_tensor(0)->dims->data[2]));
-    cv::Mat res = resizeAndPad(img, cv::Size(192, 192), cv::Scalar(0, 0, 0));
+    int topPad;
+    int bottomPad;
+    int leftPad;
+    int rightPad;
+    cv::Mat res;
+    std::tie(res, topPad, bottomPad, leftPad, rightPad)  = resizeAndPad(img, cv::Size(192, 192), cv::Scalar(0, 0, 0));
     
     
     //printf("Resized image shape: %d %d\n", img_dummy.rows, img_dummy.cols);
@@ -100,7 +105,7 @@ int main() {
     std::vector<std::vector<float>> boxes;
     cv::Mat draw = cv::imread("../data/example.jpg", cv::IMREAD_COLOR);
     cv::cvtColor(draw, draw, cv::COLOR_BGR2RGB);
-    draw = resizeAndPad(draw, cv::Size(192, 192), cv::Scalar(0, 0, 0));
+    cv::resize(draw, draw, cv::Size(interpreter->input_tensor(0)->dims->data[1], interpreter->input_tensor(0)->dims->data[2]));
     filterClassesByScores(raw_scores,detection_scores,detection_classes);
     for (int i = 0; i < 2304; ++i) {
         const int box_offset = i * 16; //+ options_.box_coord_offset()
@@ -137,6 +142,8 @@ int main() {
     // NMS
     float iou_threshold = 0.3;
     nms(boxes,iou_threshold);
+    // Letterbox removal
+    remove_letterbox(boxes,192,192,topPad, bottomPad, leftPad, rightPad);
     // Visualize
     // Iterate through the boxes
     for (const auto &box : boxes) {

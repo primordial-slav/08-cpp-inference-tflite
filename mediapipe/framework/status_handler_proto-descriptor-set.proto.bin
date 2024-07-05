@@ -1,9 +1,0 @@
-
-Þ
-(mediapipe/framework/status_handler.proto	mediapipe+mediapipe/framework/mediapipe_options.proto"Ç
-StatusHandlerConfig%
-status_handler (	RstatusHandler*
-input_side_packet (	RinputSidePacket&
-external_inputê (	RexternalInput5
-options (2.mediapipe.MediaPipeOptionsRoptionsB0
-com.google.mediapipe.protoBStatusHandlerProto

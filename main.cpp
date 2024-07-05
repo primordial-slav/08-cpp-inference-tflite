@@ -35,11 +35,10 @@ int main(int argc, char* argv[]) {
         tflite::FlatBufferModel::BuildFromFile("../models/face_detection_full_range.tflite");
 
     std::string output_folder = "../outputs/full_range/";
-    // Find the last occurrence of the path separator
-    std::size_t pos = image_path.find_last_of("/\\");
 
     // Extract the filename (substring that follows the last path separator)
-    std::string filename = (pos == std::string::npos) ? image_path : image_path.substr(pos + 1);
+    std::string filename;
+    std::replace_copy(image_path.begin(), image_path.end(), std::back_inserter(filename), '/', '_');
     std::string draw_path = output_folder + filename;
     std::string raw_data_output = output_folder+filename+".txt";
     TFLITE_MINIMAL_CHECK(model != nullptr);
@@ -64,6 +63,7 @@ int main(int argc, char* argv[]) {
 
     // Load the image
     cv::Mat img = cv::imread(image_path, cv::IMREAD_COLOR);
+    auto start_time = std::chrono::high_resolution_clock::now();
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
     if (img.empty()) {
         fprintf(stderr, "Failed to load image\n");
@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
     //cv::cvtColor(tensor_data, tensor_data, cv::COLOR_BGR2RGB);
     tensor_data = tensor_data/255.0;
 
-    auto start_time = std::chrono::high_resolution_clock::now();
+    
     // Copy the image data into the input tensor
     float* input = interpreter->typed_input_tensor<float>(0);
     memcpy(input, tensor_data.data, tensor_data.total() * tensor_data.elemSize());
@@ -144,12 +144,9 @@ int main(int argc, char* argv[]) {
             //int y2 = static_cast<int>(std::round(ymax));
             //outfile <<"score: "<<score<< ", x: " << x1 << ", y: " << y1 << ", x2: " << x2 << ", y2: " << y2 <<std::endl;
             //outfile <<"================================"<<std::endl;
-
             std::vector<float> box = {xmin,ymin,xmax,ymax,score,1};
-            for (const auto& value : box) {
-                outfile << value << ","; // Separate values with a space or any delimiter
-            }
-            outfile<<"\n";
+            
+
             boxes.push_back(box);
 
         }
@@ -182,6 +179,12 @@ int main(int argc, char* argv[]) {
         float xmax = box[2];
         float ymax = box[3];
         float score = box[4];
+        std::vector<float> save_box = {xmin,ymin,xmax,ymax,score,1};
+        for (const auto& value : save_box) {
+                outfile << value << ","; // Separate values with a space or any delimiter
+            }
+            outfile<<"\n";
+            
         if (score > 0.5f ){
             // Create OpenCV Points for the top-left and bottom-right corners
             cv::Point2f topLeft(xmin, ymin);

@@ -6,3 +6,6 @@ include/tensorflow/*
 include/opencv2/*
 *.jpg
 *.txt
+data/*
+__pycache__
+mediapipe/*
